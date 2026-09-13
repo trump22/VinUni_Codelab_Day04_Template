@@ -22,9 +22,15 @@ def search_product_catalog(category: str, max_price: int = 999999999999) -> List
         Danh sách sản phẩm phù hợp điều kiện.
     """
     catalog_file = os.path.join(RAW_DATA_DIR, "product_catalog.json")
-    # TODO: Kiểm tra file tồn tại, đọc JSON, lọc sản phẩm
-    # Gợi ý: Lọc theo p["category"] == category AND p["price_vnd"] <= max_price
-    return []
+    if not os.path.exists(catalog_file):
+        return [{"error": "Product catalog file not found."}]
+    with open(catalog_file, "r", encoding="utf-8") as file:
+        products = json.load(file)
+    return [
+        product for product in products
+        if product.get("category", "").lower() == category.lower()
+        and product.get("price_vnd", 0) <= max_price
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -49,9 +55,22 @@ def submit_support_ticket(
         Thông tin ticket vừa tạo bao gồm ticket_id, status.
     """
     tickets_file = os.path.join(RAW_DATA_DIR, "support_tickets.json")
-    # TODO: Load existing tickets, generate new ticket_id, append new ticket, save file
-    # Gợi ý: ticket_id = f"TK-{today}-{seq:03d}" với today = datetime.now().strftime("%Y%m%d")
-    return {"ticket_id": "TODO", "status": "TODO"}
+    existing_tickets: List[Dict[str, Any]] = []
+    if os.path.exists(tickets_file):
+        with open(tickets_file, "r", encoding="utf-8") as file:
+            existing_tickets = json.load(file)
+    now = datetime.now()
+    ticket_id = f"TK-{now.strftime('%Y%m%d')}-{len(existing_tickets) + 1:03d}"
+    normalized_priority = priority.lower()
+    new_ticket = {"ticket_id": ticket_id, "customer_name": customer_name,
+                  "issue_description": issue_description, "priority": normalized_priority,
+                  "status": "open", "created_at": now.isoformat() + "+07:00", "category": "general"}
+    existing_tickets.append(new_ticket)
+    with open(tickets_file, "w", encoding="utf-8") as file:
+        json.dump(existing_tickets, file, indent=2, ensure_ascii=False)
+    return {"ticket_id": ticket_id, "customer_name": customer_name,
+            "priority": normalized_priority, "status": "open",
+            "message": f"Ticket {ticket_id} da duoc tao thanh cong."}
 
 
 # ---------------------------------------------------------------------------
@@ -60,8 +79,31 @@ def submit_support_ticket(
 # ---------------------------------------------------------------------------
 
 TOOL_DEFINITIONS = [
-    # TODO: Thêm schema cho "search_product_catalog"
-    # TODO: Thêm schema cho "submit_support_ticket"
+    {
+        "name": "search_product_catalog",
+        "description": "Tra cuu san pham va dich vu Vingroup theo danh muc va gia toi da.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string", "enum": ["xe_dien", "du_lich"], "description": "Loai san pham."},
+                "max_price": {"type": "integer", "description": "Gia toi da tinh bang VND."},
+            },
+            "required": ["category"],
+        },
+    },
+    {
+        "name": "submit_support_ticket",
+        "description": "Tao ticket ho tro cho khach hang Vingroup.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "customer_name": {"type": "string", "description": "Ho va ten khach hang."},
+                "issue_description": {"type": "string", "description": "Mo ta van de can ho tro."},
+                "priority": {"type": "string", "enum": ["low", "medium", "high"], "default": "medium", "description": "Muc do uu tien."},
+            },
+            "required": ["customer_name", "issue_description"],
+        },
+    },
 ]
 
 
